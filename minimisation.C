@@ -86,8 +86,8 @@
    
     // Boucle pour chercher le maximum de vraisemblance:
     // Il faut chercher pour plusieurs k laquelle donne une probabilité la plus grande. On fait la probabilité pour tous les bins et on multiplie pour avoir la probabilité totale pour chaque k.
-    
-    for(ki=0.09;ki<=0.094;ki=ki+0.0001){
+
+    for(ki=0.08;ki<=0.1;ki=ki+0.0005){
         f->SetParameters(ntot*widthbin,ki,1/(sqrt(2*3.1415)*sig),moy,sig,1,b_slope); //Commenter pour avoir le plot du fit.
         tot_poisson=0.; // On défini ici à 0 pour réinisializer à chaque fois qu'on fait un boucle sur k.
         for (bin = 0; bin<=bins-1; bin=bin+1){
@@ -96,10 +96,10 @@
 
             // Pour la valeur mesurée on prend la valeur du bin, combien de comptages il y a par bin.
             val_mesure = htot->GetBinContent(bin+1); //GetBinContent a minimum 1 bin, donc il peut pas avoir 0 comme argument.
-	           	                    std::cout<<val_mesure<<",,,,,,"<<val_att<<std::endl;
+	           	                    //std::cout<<val_mesure<<",,,,,,"<<val_att<<std::endl;
 	        // Une fois on a la valeur attendue et la valeur mesuré on calcule avec Poisson la probabilité de trouver la valeur attendue en ayant la valeur mesurée P(mesurée,attendue):
 	        poisson = TMath::Poisson(val_mesure,val_att);
-    	                    std::cout<<poisson<<std::endl;
+    	                    //std::cout<<poisson<<std::endl;
 	        // On fait le log : 
 	        poisson = TMath::Log(poisson);
 	                    //std::cout<<val_att<<std::endl;
@@ -109,27 +109,25 @@
 
     // On veut le -log du coup on stocke avec un - :
     likelihood[i] = - tot_poisson; //axe y, il faut aussi l'axe x pour le plot. L'axe x ce sont les k.
-    i = i+1 ; // On actualise la valeur de i pour bouger dans le vecteur likelihood
-
-
     K[i]=ki;
-            //std::cout<<likelihood[i]<<K[i]<<std::endl;
-            
+    //std::cout<<K[i]<<std::endl;
+    i = i+1 ; // On actualise la valeur de i pour bouger dans les vecteurs likelihood et K
+    // i en plus va être la quantité de points qu'on a, on va l'utiliser pour plot après !
+     
 
         }
     
-    //std::cout<<likelihood[4]<<std::endl;
+                std::cout<<i<<std::endl;
    TCanvas* c1 = new TCanvas;
    c1->cd(1);
-   //int n = sizeof(K)/sizeof(int);
-               //std::cout<<n<<std::endl;
-   TGraph* g = new TGraph(100,K,likelihood);
+
+   TGraph* g = new TGraph(i,K,likelihood); // ici on utilise i, parce que c'est le nombre de points qu'on a.
    //TAxis *axis = g->GetXaxis();
    //axis->SetLimits(0.084,0.1);
    g->SetTitle("Graph title;X title;Y title");
-   g->GetHistogram()->SetMaximum(236.);   // along          
-   g->GetHistogram()->SetMinimum(234.4);
-   g->Draw();   //g->Draw("AC*");
+   //g->GetHistogram()->SetMaximum(236.);   // along          
+   //g->GetHistogram()->SetMinimum(234.4);
+   g->Draw("AC*");   //g->Draw("AC*");
    //TF1* fit = new TF1("fit", "[0]*x*x+[1]*x+[2]");  
    g->Fit("pol2");
     // plot pour chercher le minimum de likelihood vs k, i.e. le meilleur k.
