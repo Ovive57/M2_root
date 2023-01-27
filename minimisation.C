@@ -117,7 +117,7 @@
 
         }
     
-                std::cout<<i<<std::endl;
+
    TCanvas* c1 = new TCanvas;
    c1->cd(1);
 
@@ -128,9 +128,22 @@
    //g->GetHistogram()->SetMaximum(236.);   // along          
    //g->GetHistogram()->SetMinimum(234.4);
    g->Draw("AC*");   //g->Draw("AC*");
-   //TF1* fit = new TF1("fit", "[0]*x*x+[1]*x+[2]");  
-   g->Fit("pol2");
+   TF1* fit = new TF1("fit", "pol2");  
+   g->Fit("fit"); // pour afficher: options->FitParameters
     // plot pour chercher le minimum de likelihood vs k, i.e. le meilleur k.
+   
+   double_t p0=fit->GetParameter(0); //c
+   double_t p1=fit->GetParameter(1); //b
+   double_t p2=fit->GetParameter(2); //a
+   double_t chi2=fit->GetChisquare(); //chi2
+   double_t ndl=fit->GetNDF(); // Number of Degrees of freedom
+   
+   // Le minimum d'une parabole es défini comme V = -b/(2a);
+   double_t Kmin = -p1/(2*p2);
+   
+   
+   std::cout<<"Valeur de k trouvée : "<<Kmin<<" notre k : "<<k<<std::endl;
+   
     
 } 
     
