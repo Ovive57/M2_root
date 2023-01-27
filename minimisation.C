@@ -49,7 +49,7 @@
     
     // Fonction du bruit : 
 	TF1* fb = new TF1("background","[0]*exp(-[1]*x)",0,10);
-	fb->SetParameters(1,b_slope);
+	fb->SetParameters(1,b_slope); // Amplitud exp, pente exp
 	
 	// Fonction du signal : 
 	TF1* fs = new TF1("signal", "gaus", 0,10);
@@ -153,11 +153,11 @@
 
    
    // Pour le rapport: ymin = a*kmin*kmin + b*kmin + c; ymin + 0.5 = a*x*x + b*x + c ----> x = -b/2a +- sqrt(2a)/2a
-   ksig = (-p1+std::sqrt(2*p2))/(2*p2);
+   ksig = (-p1+TMath::Sqrt(2*p2))/(2*p2);
    
    //std::cout<<xsig<<std::endl;
    // sigma = |x-kmin| 
-   sigma = std::abs(ksig-kmin);
+   sigma = TMath::Abs(ksig-kmin);
    std::cout<<"Valeur de k trouvée : "<<kmin<<"+-"<<sigma<<" notre k : "<<k<<std::endl;
    
 
