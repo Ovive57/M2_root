@@ -30,10 +30,21 @@
 
     
     // Tableaux pour le plot
-    double likelihood[100]; //likelihood des poisssons, axe y. Il faudrait voir la taille, même taille qu'iterations sur k.
-    // Il manque un tableau de k pour l'axe x.
-    double K[100];
-    int i = 0; // Pour remplir chaque tableau pour le plot
+    double likelihood[250]; //likelihood des poissons, axe y. Il faudrait voir la taille, même taille qu'iterations sur k.
+    double K[250]; // l'axe x.
+    int i = 0; // Compteur pour remplir chaque tableau pour le plot.
+    
+    // Parametres pour le fit y = a*x*x + b*x + c
+    double_t p0; //c
+    double_t p1; //b
+    double_t p2;//a
+    double_t chi2; //chi2
+    double_t ndl; // Number of Degrees of freedom
+   
+    double_t kmin; // K qui correspond au minimum de l'ajustement
+    double_t ksig; // K qui correspond au sigma de l'ajustement
+    double_t sigma; // sigma de l'ajustement
+    
     
     
     // Fonction du bruit : 
@@ -87,10 +98,10 @@
     // Boucle pour chercher le maximum de vraisemblance:
     // Il faut chercher pour plusieurs k laquelle donne une probabilité la plus grande. On fait la probabilité pour tous les bins et on multiplie pour avoir la probabilité totale pour chaque k.
 
-    for(ki=0.08;ki<=0.1;ki=ki+0.0005){
+    for(ki=0.0775;ki<=0.11;ki=ki+0.0005){ //Avec cette choix de k on a un  chi2=0.99, tres proche de 1, mais ça me parait abuser un peu xd
         f->SetParameters(ntot*widthbin,ki,1/(sqrt(2*3.1415)*sig),moy,sig,1,b_slope); //Commenter pour avoir le plot du fit.
         tot_poisson=0.; // On défini ici à 0 pour réinisializer à chaque fois qu'on fait un boucle sur k.
-        for (bin = 0; bin<=bins-1; bin=bin+1){
+        for (bin = 0; bin<=bins-1; bin++){
             x = htot->GetBinCenter(bin+1);
             val_att = f->Eval(x);
 
@@ -122,27 +133,34 @@
    c1->cd(1);
 
    TGraph* g = new TGraph(i,K,likelihood); // ici on utilise i, parce que c'est le nombre de points qu'on a.
-   //TAxis *axis = g->GetXaxis();
-   //axis->SetLimits(0.084,0.1);
-   g->SetTitle("Graph title;X title;Y title");
-   //g->GetHistogram()->SetMaximum(236.);   // along          
-   //g->GetHistogram()->SetMinimum(234.4);
+
+   g->SetTitle("Likelihood;Signal sur bruit (k);Likelihood");
    g->Draw("AC*");   //g->Draw("AC*");
    TF1* fit = new TF1("fit", "pol2");  
    g->Fit("fit"); // pour afficher: options->FitParameters
+   
+   
     // plot pour chercher le minimum de likelihood vs k, i.e. le meilleur k.
    
-   double_t p0=fit->GetParameter(0); //c
-   double_t p1=fit->GetParameter(1); //b
-   double_t p2=fit->GetParameter(2); //a
-   double_t chi2=fit->GetChisquare(); //chi2
-   double_t ndl=fit->GetNDF(); // Number of Degrees of freedom
+   p0=fit->GetParameter(0); //c
+   p1=fit->GetParameter(1); //b
+   p2=fit->GetParameter(2); //a
+   chi2=fit->GetChisquare(); //chi2
+   ndl=fit->GetNDF(); // Number of Degrees of freedom
    
    // Le minimum d'une parabole es défini comme V = -b/(2a);
-   double_t Kmin = -p1/(2*p2);
+   kmin = -p1/(2*p2);
+
    
+   // Pour le rapport: ymin = a*kmin*kmin + b*kmin + c; ymin + 0.5 = a*x*x + b*x + c ----> x = -b/2a +- sqrt(2a)/2a
+   ksig = (-p1+std::sqrt(2*p2))/(2*p2);
    
-   std::cout<<"Valeur de k trouvée : "<<Kmin<<" notre k : "<<k<<std::endl;
+   //std::cout<<xsig<<std::endl;
+   // sigma = |x-kmin| 
+   sigma = std::abs(ksig-kmin);
+   std::cout<<"Valeur de k trouvée : "<<kmin<<"+-"<<sigma<<" notre k : "<<k<<std::endl;
+   
+
    
     
 } 
