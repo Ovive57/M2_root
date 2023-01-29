@@ -9,7 +9,7 @@
     
     // Variables Gauss et exponentielle pour créer signal et bruit et histogrames
     double b_slope = 1.0; // pente exponentielle (bruit)
-    double moy = 3.0; // moyenne gaussienne (signal)
+    double moy = 2.0; // moyenne gaussienne (signal)
     double sig = 0.2; // déviation standard gaussienne (signal) 
     double amp = 1.0; // amplitude gaussienne (signal)
     int bins = 100; // Nombre de bins 
@@ -46,14 +46,23 @@
     double_t sigma; // sigma de l'ajustement
     
     
-    
-    // Fonction du bruit : 
+
+	// Fonction de l'onde gravitationnelle : 
+    TF1* fg = new TF1("grav", "[0]*x*sin([1]*x*x)", 0,10);
+	fg->SetParameters(0.01,1);
+	
+	// Fonction double gaussienne signal : 
+	TF1* fs = new TF1("signal", "gaus(0)+gaus(3)+gaus(6)", 0,10);//+gaus(6)
+	fs->SetParameters(amp,moy,sig,amp,moy+1,sig-0.05,amp,moy+2,sig-0.1);
+	
+	// Fonction du bruit : 
 	TF1* fb = new TF1("background","[0]*exp(-[1]*x)",0,10);
 	fb->SetParameters(1,b_slope); // Amplitud exp, pente exp
 	
-	// Fonction du signal : 
-	TF1* fs = new TF1("signal", "gaus", 0,10);
-	fs->SetParameters(amp,moy,sig);
+	// Histogramme de l'onde gravitationnelle :
+	TH1F* hg = new TH1F("histgrav","histgrav",bins,3,5);
+	hg->FillRandom("grav",ns);
+	hg->SetLineColor(kBlue);
 	
 	// Histogramme du bruit :
 	TH1F* hb = new TH1F("histb","histb",bins,0,10);
@@ -65,41 +74,56 @@
 	hs->FillRandom("signal",ns);
 	hs->SetLineColor(kBlue);
     
-    // Les deux histogramme ensemble :
+    // Les deux histogrammes (bruit + double gaus) ensemble :
     TH1F* htot = new TH1F("histot","histot",bins,0,10);
     htot->Add(hs,hb);
     widthbin = htot->GetBinWidth(1); // On calcule la largeur des bins pour plus tard (les boucles) tous les bins sont pareils donc on choisi par exemple de mesurer la largeur du premier.
     
-    // Le plot avec les titres des axes:
-    
-    htot->SetTitle("Signal sur bruit");
-    htot->GetXaxis()->SetTitle("Temps"); // Pas sûre que ça soit temps xd
-    htot->GetYaxis()->SetTitle("Nombre d'évènements");
+	
+	//Les deux histogrammes(bruit + GW) ensemble :
+    //TList *list = new TList;
+    //list->Add(hg);
+    //list->Add(hb);
+    //TH1F *htot = (TH1F*)hg->Clone("htot");
+    //htot->Reset();
+    //htot->Merge(list);
 
-    // Création de Canvas pour faire le plot, je n'ai aucune idée de comment ça marche, mais ce sont comme des figures.
     
+    
+    //std::cout<<widthbin<<std::endl;
+
+    // Création de Canvas pour faire le plot
 	TCanvas* c = new TCanvas;
 	c->cd(1);
 	c->SetLogy(1);
+	//hg->Draw();
+	//hb->Draw("same");
 	htot->Draw("e");
-
-	TFile fout("gen.root","recreate");
-	htot->Write();
-	fout.Close();
-
- 
+	//hg->Draw("same");
+	widthbin = htot->GetBinWidth(1); // On calcule la largeur des bins pour plus tard (les boucles) tous les bins sont pareils donc on choisi par exemple de mesurer la largeur du premier.
+	// Fonction f pour les valeurs attendues.
+     
     // Fonction f pour les valeurs attendues.
-    TF1* f = new TF1("fontion f","[0]*([1]*gaus(2)+(1-[1])*[5]*exp(-[6]*x))",0,10);
+    TF1* f = new TF1("fontion f","[0]*([1]/3*gaus(2)+[1]/3*gaus(7)+[1]/3*[10]*exp(-(x-([3]+2))**2/([4]-0.1)**2)+(1-[1])*[5]*exp(-[6]*x))",0,10);//+[8]*exp(-(x-([3]+2))**2/([4]-0.1))
     // Pour plot décommenter et commenter dans la boucle.
-    f->SetParameters(ntot*widthbin,k,1/(sqrt(2*3.1415)*sig),moy,sig,1,b_slope);
+    f->SetParameters(ntot*widthbin,k,1/(sqrt(2*3.1415)*sig),moy,sig,1,b_slope,1/(sqrt(2*3.1415)*(sig-0.05)),moy+1,sig-0.05,1/(sqrt(2*3.1415)*(sig-0.1)));//,1/(sqrt(2*3.1415)*(sig-0.1)));
     //std::cout<<" ntot "<<ntot<<" width "<<widthbin<<"ki "<<k<<" amp "<<amp<<" moy "<<moy<<" sig "<<sig<<" slope "<<b_slope<<std::endl;
+
+    
+    //f->SetParameters(ntot*widthbin,k,1/(sqrt(2*3.1415)*sig1),moy1,sig1,1/(sqrt(2*3.1415)*sig3),moy3,sig3,1/(sqrt(2*3.1415)*sig2),moy2,sig2,1,b_slope);
+
+    
+    
+    //std::cout<<" ntot "<<ntot<<" width "<<widthbin<<" ki "<<k<<" slope "<<b_slope<<std::endl;
     f->Draw("same");
-   
+    //f1->Draw("same");
+    //f2->Draw("same");
+    
     // Boucle pour chercher le maximum de vraisemblance:
     // Il faut chercher pour plusieurs k laquelle donne une probabilité la plus grande. On fait la probabilité pour tous les bins et on multiplie pour avoir la probabilité totale pour chaque k.
 
-    for(ki=0.0775;ki<=0.11;ki=ki+0.0005){ //Avec cette choix de k on a un  chi2=0.99, tres proche de 1, mais ça me parait abuser un peu xd
-        f->SetParameter(1,ki);//(ntot*widthbin,ki,1/(sqrt(2*3.1415)*sig),moy,sig,1,b_slope); //Commenter pour avoir le plot du fit.
+    for(ki=0.075;ki<=0.095;ki=ki+0.0005){
+        f->SetParameter(1,ki);//ntot*widthbin,ki,1/(sqrt(2*3.1415)*sig),moy,sig,1,b_slope); //Commenter pour avoir le plot du fit.
         tot_poisson=0.; // On défini ici à 0 pour réinisializer à chaque fois qu'on fait un boucle sur k.
         for (bin = 0; bin<=bins-1; bin++){
             x = htot->GetBinCenter(bin+1);
@@ -159,10 +183,41 @@
    // sigma = |x-kmin| 
    sigma = TMath::Abs(ksig-kmin);
    std::cout<<"Valeur de k trouvée : "<<kmin<<"+-"<<sigma<<" notre k : "<<k<<std::endl;
+    
+
    
 
    
+	
     
-} 
-    
-   
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+}
