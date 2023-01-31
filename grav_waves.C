@@ -1,4 +1,5 @@
 {
+    /*************** Initialisation des variables ***************/
 	gRandom = new TRandom3(2);
     
     // Variables signal/bruit
@@ -32,8 +33,6 @@
     // Tableaux pour le plot
     double likelihood[250]; //likelihood des poissons, axe y. Il faudrait voir la taille, même taille qu'iterations sur k.
     double K[250]; // l'axe x.
-    double likelihood2[250]; //likelihood des poissons, axe y. Il faudrait voir la taille, même taille qu'iterations sur k.
-    double K2[250]; // l'axe x.
     int i = 0; // Compteur pour remplir chaque tableau pour le plot.
     
     // Parametres pour le fit y = a*x*x + b*x + c
@@ -48,251 +47,262 @@
     double_t sigma; // sigma de l'ajustement
     
     
-    {
+    {/*****	DOUBLE GAUSSIENNE *****/
 	
-	// Fonction double gaussienne : 
-	TF1* fs = new TF1("signal", "gaus(0)+gaus(3)", 0,10);//+gaus(6)
+	/*************** Création pseudo-données ***************/
+	
+    /* Fonction du signal */ 
+	TF1* fs = new TF1("signal", "gaus(0)+gaus(3)", 0,10);
 	fs->SetParameters(amp,moy,sig,amp,moy+1,sig-0.05);
 	
-	// Fonction du bruit : 
+    /* Fonction du bruit */ 
 	TF1* fb = new TF1("background","[0]*exp(-[1]*x)",0,10);
 	fb->SetParameters(1,b_slope); // Amplitud exp, pente exp
 	
-	// Histogramme du signal :
+	/* Histogramme du signal */
 	TH1F* hs = new TH1F("hists","hists",bins,0,10);
 	hs->FillRandom("signal",ns);
 	hs->SetLineColor(kBlue);
 	
-	// Histogramme du bruit :
+	/* Histogramme du bruit */
 	TH1F* hb = new TH1F("histb","histb",bins,0,10);
 	hb->FillRandom("background",nb);
 	hb->SetLineColor(kBlue);
     
-    // Les deux histogrammes (bruit + double gaus) ensemble :
+    /* Les deux histogrammes ensemble */
     TH1F* htot = new TH1F("histot","histot",bins,0,10);
     htot->Add(hs,hb);
-    widthbin = htot->GetBinWidth(1); // On calcule la largeur des bins pour plus tard (les boucles) tous les bins sont pareils donc on choisi par exemple de mesurer la largeur du premier.
-    
-    htot->SetTitle("Histogramme d'evenements");
-    htot->GetXaxis()->SetTitle("x"); // Pas sûre que ça soit temps xd
-    htot->GetYaxis()->SetTitle("Nombre d'evenements");
-
-    // Création de Canvas pour faire le plot
-	TCanvas* c = new TCanvas;
+    widthbin = htot->GetBinWidth(1); // Largeur des bins
+   
+    /*************** Plot pseudo-données avec les valeurs attendues ***************/
+        
+        // Création de Canvas pour faire le plot.
+    TCanvas* c = new TCanvas;
 	c->cd(1);
 	c->SetLogy(1);
+	
+        // Paramètres plot.
+    htot->SetTitle("Histogramme d'evenements");
+    htot->GetXaxis()->SetTitle("x");
+    htot->GetYaxis()->SetTitle("Nombre d'evenements");
 
-	htot->Draw("e");
+	/* Plot des données */ 
+    htot->Draw("e");
      
-    // Fonction f pour les valeurs attendues.
-    
-    // Deux fois, la premiere pour le plot, la deuxième pour chercher le likelihood.
-    
+    /* Fonction pour les valeurs attendues */   
     TF1* ffit = new TF1("fontion fit","[0]*([1]/2*gaus(2)+[1]/2*gaus(7)+(1-[1])*[5]*exp(-[6]*x))",0,10);
+        // Paramètres plot.
+    ffit->SetTitle("Valeurs attendues");
     ffit->SetParameters(ntot*widthbin,k,1/(sqrt(2*3.1415)*sig),moy,sig,1,b_slope,1/(sqrt(2*3.1415)*(sig-0.05)),moy+1,sig-0.05);
+        
+    /* Plot des valeurs attendues avec les données */
     ffit->Draw("same");
-    ffit->SetTitle("Fit");
     c->BuildLegend();
     
-    // Pour le likelihood:
+    
+    /*************** Méthode maximum de vraisemblance pour chercher le paramètre k, signal sur bruit ***************/
  
+    /* Réinisalisation fonction pour les valeurs attendues */
     TF1* f = new TF1("fontion f","[0]*([1]/2*gaus(2)+[1]/2*gaus(7)+(1-[1])*[5]*exp(-[6]*x))",0,10);
-
     f->SetParameters(ntot*widthbin,k,1/(sqrt(2*3.1415)*sig),moy,sig,1,b_slope,1/(sqrt(2*3.1415)*(sig-0.05)),moy+1,sig-0.05);
     
 
 
-    // Boucle pour chercher le maximum de vraisemblance:
-    // Il faut chercher pour plusieurs k laquelle donne une probabilité la plus grande. On fait la probabilité pour tous les bins et on multiplie pour avoir la probabilité totale pour chaque k.
-
+    /*Boucle sur plusieurs k et tous les bins : On calcule la probabilité de poisson pour chaque bin et après on calcule la probabilité totale pour chaque k */
     for(ki=0.075;ki<=0.095;ki=ki+0.0005){
-        f->SetParameter(1,ki);//ntot*widthbin,ki,1/(sqrt(2*3.1415)*sig),moy,sig,1,b_slope); //Commenter pour avoir le plot du fit.
-        tot_poisson=0.; // On défini ici à 0 pour réinisializer à chaque fois qu'on fait un boucle sur k.
+        // On réinisialise le fit avec les diffèrents k.
+        f->SetParameter(1,ki);
+        // On réinisialise la somme des poissons à chaque fois qu'on fait un boucle sur k.
+        tot_poisson=0.;
+        
         for (bin = 0; bin<=bins-1; bin++){
+            // On cherche le x de chaque bin : 
             x = htot->GetBinCenter(bin+1);
+            // On trouve la valeur attendue en chaque x : 
             val_att = f->Eval(x);
 
-            // Pour la valeur mesurée on prend la valeur du bin, combien de comptages il y a par bin.
-            val_mesure = htot->GetBinContent(bin+1); //GetBinContent a minimum 1 bin, donc il peut pas avoir 0 comme argument.
-	           	                    //std::cout<<val_mesure<<",,,,,,"<<val_att<<std::endl;
-	        // Une fois on a la valeur attendue et la valeur mesuré on calcule avec Poisson la probabilité de trouver la valeur attendue en ayant la valeur mesurée P(mesurée,attendue):
-	        poisson = TMath::Poisson(val_mesure,val_att);
-    	                    //std::cout<<poisson<<std::endl;
-	        // On fait le log : 
-	        poisson = TMath::Log(poisson);
-	                    //std::cout<<val_att<<std::endl;
-	        // Comme on a fait le log on ne multiplie pas on somme:
-            tot_poisson += poisson;
+            // On trouve la valeur mesurée en prennant la valeur du bin :
+            val_mesure = htot->GetBinContent(bin+1); 
+	           	                    
+	        // On calcule avec Poisson la probabilité de trouver la valeur attendue en ayant la valeur mesurée P(mesurée,attendue) et on fait la somme des logarithmes:
+            tot_poisson += TMath::Log(TMath::Poisson(val_mesure,val_att));
             }
 
-    // On veut le -log du coup on stocke avec un - :
-    likelihood[i] = - tot_poisson; //axe y, il faut aussi l'axe x pour le plot. L'axe x ce sont les k.
+    // On sauvegarde les probabilités obtenues dans des tableaux
+    likelihood[i] = - tot_poisson;
     K[i]=ki;
-    //std::cout<<K[i]<<std::endl;
-    i = i+1 ; // On actualise la valeur de i pour bouger dans les vecteurs likelihood et K
-    // i en plus va être la quantité de points qu'on a, on va l'utiliser pour plot après !
-     
 
+    // On actualise le compteur:
+    i = i+1 ; 
         }
     
+    /*************** Plot vraisemblance ***************/
+        // Création de Canvas pour faire le plot.
+    TCanvas* c1 = new TCanvas;
+    c1->cd(1);
 
-   TCanvas* c1 = new TCanvas;
-   c1->cd(1);
+    /* Plot avec TGraph */
+    TGraph* g = new TGraph(i,K,likelihood); 
 
-   TGraph* g = new TGraph(i,K,likelihood); // ici on utilise i, parce que c'est le nombre de points qu'on a.
+    	// Paramètres plot.
+    g->SetTitle("Likelihood 2 gaussiennes;Signal sur bruit (k);Likelihood");
+    g->Draw("AC*");
+        
+        // Fit avec un polynôme de second degré.
+    TF1* fit = new TF1("fit", "pol2");  
+    g->Fit("fit"); // pour afficher: options->FitParameters
+   
+   
+    /*************** Calcul du minimum, et donc de k ***************/
+    /* Paramètres du fit y = a*x*x + b*x + c */
+    p0=fit->GetParameter(0); //c
+    p1=fit->GetParameter(1); //b
+    p2=fit->GetParameter(2); //a
+    chi2=fit->GetChisquare(); //chi2
+    ndl=fit->GetNDF(); // Number of Degrees of freedom
+   
+        // Le minimum d'une parabole es défini comme V = -b/(2a);
+    kmin = -p1/(2*p2);
 
-   g->SetTitle("Likelihood 2 gaussiennes;Signal sur bruit (k);Likelihood");
-   g->Draw("AC*");   //g->Draw("AC*");
-   TF1* fit = new TF1("fit", "pol2");  
-   g->Fit("fit"); // pour afficher: options->FitParameters
+    /* On cherche un sigma autour de notre k, +- 1/2 */  
+        // ymin = a*kmin*kmin + b*kmin + c; ymin + 0.5 = a*x*x + b*x + c ----> x = -b/2a +- sqrt(2a)/2a 
+    ksig = (-p1+TMath::Sqrt(2*p2))/(2*p2);
    
-   
-    // plot pour chercher le minimum de likelihood vs k, i.e. le meilleur k.
-   
-   p0=fit->GetParameter(0); //c
-   p1=fit->GetParameter(1); //b
-   p2=fit->GetParameter(2); //a
-   chi2=fit->GetChisquare(); //chi2
-   ndl=fit->GetNDF(); // Number of Degrees of freedom
-   
-   // Le minimum d'une parabole es défini comme V = -b/(2a);
-   kmin = -p1/(2*p2);
-
-   
-   // Pour le rapport: ymin = a*kmin*kmin + b*kmin + c; ymin + 0.5 = a*x*x + b*x + c ----> x = -b/2a +- sqrt(2a)/2a
-   ksig = (-p1+TMath::Sqrt(2*p2))/(2*p2);
-   
-   //std::cout<<xsig<<std::endl;
-   // sigma = |x-kmin| 
-   sigma = TMath::Abs(ksig-kmin);
-   std::cout<<"Valeur de k trouvée : "<<kmin<<"+-"<<sigma<<" notre k : "<<k<<std::endl;
-    
+        // sigma = |x-kmin| 
+    sigma = TMath::Abs(ksig-kmin);
+    std::cout<<"Valeur de k trouvée : "<<kmin<<"+/-"<<sigma<<" notre k : "<<k<<std::endl;
 
   }
   
-  {
-    // Fonction triple gaussienne : 
+  {/***** TRIPLE GAUSSIENNE *****/
+  
+    /*************** Création pseudo-données ***************/
+    
+	/* Fonction du signal */ 
 	TF1* fs = new TF1("signal", "gaus(0)+gaus(3)+gaus(6)", 0,10);//+gaus(6)
 	fs->SetParameters(amp,moy,sig,amp,moy+1,sig-0.05,amp,moy+2,sig-0.1);
 	
-	// Fonction du bruit : 
+    /* Fonction du bruit */ 
 	TF1* fb = new TF1("background","[0]*exp(-[1]*x)",0,10);
 	fb->SetParameters(1,b_slope); // Amplitud exp, pente exp
 	
-	// Histogramme du signal :
+	/* Histogramme du signal */
 	TH1F* hs = new TH1F("hists","hists",bins,0,10);
 	hs->FillRandom("signal",ns);
 	hs->SetLineColor(kBlue);
 	
-	// Histogramme du bruit :
+	/* Histogramme du bruit */
 	TH1F* hb = new TH1F("histb","histb",bins,0,10);
 	hb->FillRandom("background",nb);
 	hb->SetLineColor(kBlue);
 	
-	// Les deux histogrammes (bruit + double gaus) ensemble :
+    /* Les deux histogrammes ensemble */
     TH1F* htot = new TH1F("histot","histot",bins,0,10);
     htot->Add(hs,hb);
-    widthbin = htot->GetBinWidth(1); // On calcule la largeur des bins pour plus tard (les boucles) tous les bins sont pareils donc on choisi par exemple de mesurer la largeur du premier.
+    widthbin = htot->GetBinWidth(1);
     
-    htot->SetTitle("Histogramme d'evenements");
-    htot->GetXaxis()->SetTitle("x"); 
-    htot->GetYaxis()->SetTitle("Nombre d'evenements");
     
-        // Création de Canvas pour faire le plot
+    /*************** Plot pseudo-données avec les valeurs attendues ***************/
+        
+        // Création de Canvas pour faire le plot.
 	TCanvas* c = new TCanvas;
 	c->cd(1);
 	c->SetLogy(1);
 
+	    // Paramètres plot.
+    htot->SetTitle("Histogramme d'evenements");
+    htot->GetXaxis()->SetTitle("x"); 
+    htot->GetYaxis()->SetTitle("Nombre d'evenements");	    
+
+	/* Plot des données */ 	    
 	htot->Draw("e");
 	
-	// Fonction f pour les valeurs attendues.
 	
-	    
-    // Deux fois, la premiere pour le plot, la deuxième pour chercher le likelihood.
-    
+    /* Fonction pour les valeurs attendues */    
     TF1* ffit = new TF1("fontion fit","[0]*([1]/3*gaus(2)+[1]/3*gaus(7)+[1]/3*[10]*exp(-(x-([3]+2))**2/([4]-0.1)**2)+(1-[1])*[5]*exp(-[6]*x))",0,10);
+    
+        // Paramètres plot.
+    ffit->SetTitle("Valeurs attendues");
     ffit->SetParameters(ntot*widthbin,k,1/(sqrt(2*3.1415)*sig),moy,sig,1,b_slope,1/(sqrt(2*3.1415)*(sig-0.05)),moy+1,sig-0.05,1/(sqrt(2*3.1415)*(sig-0.1)));
+    
+    /* Plot des valeurs attendues avec les données */    
     ffit->Draw("same");
-    ffit->SetTitle("Fit");
     c->BuildLegend();
     
-    // Pour likelihood
+    /*************** Méthode maximum de vraisemblance pour chercher le paramètre k, signal sur bruit ***************/
+    
+    /* Réinisalisation fonction pour les valeurs attendues */
     TF1* f = new TF1("fontion f","[0]*([1]/3*gaus(2)+[1]/3*gaus(7)+[1]/3*[10]*exp(-(x-([3]+2))**2/([4]-0.1)**2)+(1-[1])*[5]*exp(-[6]*x))",0,10);
-    
     f->SetParameters(ntot*widthbin,k,1/(sqrt(2*3.1415)*sig),moy,sig,1,b_slope,1/(sqrt(2*3.1415)*(sig-0.05)),moy+1,sig-0.05,1/(sqrt(2*3.1415)*(sig-0.1)));
-
-
     
-    // Boucle pour chercher le maximum de vraisemblance:
-    // Il faut chercher pour plusieurs k laquelle donne une probabilité la plus grande. On fait la probabilité pour tous les bins et on multiplie pour avoir la probabilité totale pour chaque k.
-    i=0;
+    /*Boucle sur plusieurs k et tous les bins : On calcule la probabilité de poisson pour chaque bin et après on calcule la probabilité totale pour chaque k */
+ 
+    i=0; // On réinitialise le compteur 
     for(ki=0.075;ki<=0.095;ki=ki+0.0005){
+        // On réinisialise le fit avec les diffèrents k.
         f->SetParameter(1,ki);
-        tot_poisson=0.; // On défini ici à 0 pour réinisializer à chaque fois qu'on fait un boucle sur k.
+        // On réinisialise la somme des poissons à chaque fois qu'on fait un boucle sur k.
+        tot_poisson=0.; 
+        
         for (bin = 0; bin<=bins-1; bin++){
+            // On cherche le x de chaque bin : 
             x = htot->GetBinCenter(bin+1);
+            // On trouve la valeur attendue en chaque x : 
             val_att = f->Eval(x);
 
-            // Pour la valeur mesurée on prend la valeur du bin, combien de comptages il y a par bin.
-            val_mesure = htot->GetBinContent(bin+1); //GetBinContent a minimum 1 bin, donc il peut pas avoir 0 comme argument.
-	           	                    //std::cout<<val_mesure<<",,,,,,"<<val_att<<std::endl;
-	        // Une fois on a la valeur attendue et la valeur mesuré on calcule avec Poisson la probabilité de trouver la valeur attendue en ayant la valeur mesurée P(mesurée,attendue):
-	        poisson = TMath::Poisson(val_mesure,val_att);
-    	                    //std::cout<<poisson<<std::endl;
-	        // On fait le log : 
-	        poisson = TMath::Log(poisson);
-	                    //std::cout<<val_att<<std::endl;
-	        // Comme on a fait le log on ne multiplie pas on somme:
-            tot_poisson += poisson;
+            // On trouve la valeur mesurée en prennant la valeur du bin : 
+            val_mesure = htot->GetBinContent(bin+1); 
+	        
+	        // On calcule avec Poisson la probabilité de trouver la valeur attendue en ayant la valeur mesurée P(mesurée,attendue) et on fait la somme des logarithmes:
+            tot_poisson += TMath::Log(TMath::Poisson(val_mesure,val_att));
             }
 
-    // On veut le -log du coup on stocke avec un - :
-    likelihood2[i] = - tot_poisson; //axe y, il faut aussi l'axe x pour le plot. L'axe x ce sont les k.
-    K2[i]=ki;
-    //std::cout<<K[i]<<std::endl;
-    i = i+1 ; // On actualise la valeur de i pour bouger dans les vecteurs likelihood et K
-    // i en plus va être la quantité de points qu'on a, on va l'utiliser pour plot après !
-     
-
+    // On sauvegarde les probabilités obtenues dans des tableaux
+    likelihood[i] = - tot_poisson; 
+    K[i]=ki;
+    // On actualise le compteur:
+    i = i+1; 
         }
     
+    /*************** Plot vraisemblance ***************/
 
-   TCanvas* c2 = new TCanvas;
-   c2->cd(1);
-
-   TGraph* g = new TGraph(i,K2,likelihood2); // ici on utilise i, parce que c'est le nombre de points qu'on a.
-
-   g->SetTitle("Likelihood 3 gaussiennes;Signal sur bruit (k);Likelihood");
-   g->Draw("AC*");   //g->Draw("AC*");
-   TF1* fit = new TF1("fit", "pol2");  
-   g->Fit("fit"); // pour afficher: options->FitParameters
-   
-   
-    // plot pour chercher le minimum de likelihood vs k, i.e. le meilleur k.
-   
-   p0=fit->GetParameter(0); //c
-   p1=fit->GetParameter(1); //b
-   p2=fit->GetParameter(2); //a
-   chi2=fit->GetChisquare(); //chi2
-   ndl=fit->GetNDF(); // Number of Degrees of freedom
-   
-   // Le minimum d'une parabole es défini comme V = -b/(2a);
-   kmin = -p1/(2*p2);
-
-   
-   // Pour le rapport: ymin = a*kmin*kmin + b*kmin + c; ymin + 0.5 = a*x*x + b*x + c ----> x = -b/2a +- sqrt(2a)/2a
-   ksig = (-p1+TMath::Sqrt(2*p2))/(2*p2);
-   
-   //std::cout<<xsig<<std::endl;
-   // sigma = |x-kmin| 
-   sigma = TMath::Abs(ksig-kmin);
-   std::cout<<"Valeur de k trouvée : "<<kmin<<"+-"<<sigma<<" notre k : "<<k<<std::endl;
+        // Création de Canvas pour faire le plot.    
+    TCanvas* c2 = new TCanvas;
+    c2->cd(1);
+    /* Plot avec TGraph */
+    TGraph* g = new TGraph(i,K,likelihood);
     
-  
-  
+    	// Paramètres plot.    
+    g->SetTitle("Likelihood 3 gaussiennes;Signal sur bruit (k);Likelihood");
+    g->Draw("AC*");   //g->Draw("AC*");
+   
+        // Fit avec un polynôme de second degré.   
+    TF1* fit = new TF1("fit", "pol2");  
+    g->Fit("fit"); 
+   
+    /*************** Calcul du minimum, et donc de k ***************/
+   
+    /* Paramètres du fit y = a*x*x + b*x + c */
+    p0=fit->GetParameter(0); //c
+    p1=fit->GetParameter(1); //b
+    p2=fit->GetParameter(2); //a
+    chi2=fit->GetChisquare(); //chi2
+    ndl=fit->GetNDF(); // Number of Degrees of freedom
+   
+        // Le minimum d'une parabole es défini comme V = -b/(2a);
+    kmin = -p1/(2*p2);
+
+    /* On cherche un sigma autour de notre k, +- 1/2 */   
+        // ymin = a*kmin*kmin + b*kmin + c; ymin + 0.5 = a*x*x + b*x + c ----> x = -b/2a +- sqrt(2a)/2a
+    ksig = (-p1+TMath::Sqrt(2*p2))/(2*p2);
+   
+        // sigma = |x-kmin| 
+    sigma = TMath::Abs(ksig-kmin);
+    std::cout<<"Valeur de k trouvée : "<<kmin<<"+/-"<<sigma<<" notre k : "<<k<<std::endl;
   } 
 
-   
+
+/* TEST ONDES GRAVITATIONNELLES   
   {
   	// Fonction de l'onde gravitationnelle : 
     TF1* fg = new TF1("grav", "[0]*x*sin([1]*x*x)", 0,10);
@@ -377,32 +387,6 @@
     
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+*/
 
 }

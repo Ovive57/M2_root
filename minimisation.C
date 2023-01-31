@@ -81,7 +81,7 @@
 	
 	    // Paramètres plot.
     htot->SetTitle("Histogramme d'evenements");
-    htot->GetXaxis()->SetTitle("x"); // Pas sûre que ça soit temps xd
+    htot->GetXaxis()->SetTitle("x"); 
     htot->GetYaxis()->SetTitle("Nombre d'evenements");
 
 	/* Plot des données */ 
@@ -114,9 +114,9 @@
     
     /*Boucle sur plusieurs k et tous les bins : On calcule la probabilité de poisson pour chaque bin et après on calcule la probabilité totale pour chaque k */
     for(ki=0.0775;ki<=0.11;ki=ki+0.0005){
-        // On réinisialize le fit avec les diffèrents k.
+        // On réinisialise le fit avec les diffèrents k.
         f->SetParameter(1,ki);
-        // On réinisialize la somme des poissons à chaque fois qu'on fait un boucle sur k.
+        // On réinisialise la somme des poissons à chaque fois qu'on fait un boucle sur k.
         tot_poisson=0.; 
         
         for (bin = 0; bin<=bins-1; bin++){
